@@ -1,3 +1,4 @@
+import os
 ### MODEL HYPERPARAMETERS
 state_size = 16  # Our input is a stack of 4 frames hence 100x120x4 (Width, height, channels)
 action_size = 2  # 7 possible actions
@@ -29,23 +30,25 @@ training = True
 #hidden layer for network
 no_hidden_layer=24
 
-# restore the model weights
-restore_weights=False
-# tensor_dir="./tensorboard/dddqn/1"
-# model_path="./models/models.ckpt"
-
-import os
 script_dir = os.path.dirname(__file__) #<-- absolute dir the script is in
 
-model_name="model_tf_13"
+model_no=16
+model_name="model_tf_"+str(model_no)
 score_plot_path=script_dir+"/plots/"+model_name+".png"
 tensor_dir=script_dir+"/tensorboard/"+model_name
-model_path=script_dir+"/models/"+model_name+".ckpt"
+model_path=tensor_dir+"/"+model_name+".ckpt"
+hyper_path=tensor_dir+"/"+model_name+".txt"
+variable_path=tensor_dir+"/"+'variable.pkl'
+# restore the model weights
+restore=True
 
 render=False
 isPrioritized=True
 
-f = open(script_dir+"/models/"+model_name+".txt", "a")
+if not os.path.exists(tensor_dir):
+    os.makedirs(tensor_dir)
+
+f = open(hyper_path, "a")
 for name, value in globals().copy().items():
     param=name+" "+ str(value)+"\n"
     f.write(param)

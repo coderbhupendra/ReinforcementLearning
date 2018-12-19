@@ -4,15 +4,7 @@ from ddqn_tfV2.Memory import Memory
 from ddqn_tfV2.Game import Game
 from ddqn_tfV2.Hyperparameters import *
 import numpy as np
-
-# Reset the graph
-tf.reset_default_graph()
-
-# Instantiate the DQNetwork
-DQNetwork = DDDQNNet(state_size, action_size, learning_rate, name="DQNetwork")
-
-# Instantiate the target network
-TargetNetwork = DDDQNNet(state_size, action_size, learning_rate, name="TargetNetwork")
+import pickle
 
 # Instantiate memory
 memory = Memory(memory_size)
@@ -33,20 +25,11 @@ while i <pretrain_length:
     game.reset(False,False)
 print("memory Initialsed")
 
-# Setup TensorBoard Writer
-writer = tf.summary.FileWriter(tensor_dir)
-
-## Losses
-tf.summary.scalar("Loss", DQNetwork.loss)
-
-write_op = tf.summary.merge_all()
 
 """
 This function will do the part
 With ϵ select a random action atat, otherwise select at=argmaxaQ(st,a)
 """
-
-
 def predict_action(explore_start, explore_stop, decay_rate, decay_step, state):
     ## EPSILON GREEDY STRATEGY
     # Choose action a from state s using epsilon greedy.
@@ -88,17 +71,44 @@ def update_target_graph():
         op_holder.append(to_var.assign(from_var))
     return op_holder
 
-
 # Saver will help us to save our model
-saver = tf.train.Saver()
+if restore:
+    saver = tf.train.import_meta_graph(model_path+"-3400.meta")
+    # Getting back the objects:
+    with open(variable_path, 'rb') as f:  # Python 3: open(..., 'rb')
+        vars = pickle.load(f)
+    decay_step=vars[0]
+    last_episode=vars[1]
+else:
+    # Reset the graph
+    tf.reset_default_graph()
+    # Initialize the decay rate (that will use to reduce epsilon)
+    decay_step = 0
+    last_episode=0
+
+ # Instantiate the DQNetwork
+DQNetwork = DDDQNNet(state_size, action_size, learning_rate,name="DQNetwork")
+
+# Instantiate the target network
+TargetNetwork = DDDQNNet(state_size, action_size, learning_rate,name="TargetNetwork")
+
+# Setup TensorBoard Writer
+writer = tf.summary.FileWriter(tensor_dir)
+
+## Losses
+tf.summary.scalar("Loss", DQNetwork.loss)
+
+write_op = tf.summary.merge_all()
+
 
 if training == True:
     with tf.Session() as sess:
-        # Initialize the variables
-        sess.run(tf.global_variables_initializer())
-
-        # Initialize the decay rate (that will use to reduce epsilon)
-        decay_step = 0
+        if restore:
+            saver.restore(sess, tf.train.latest_checkpoint(tensor_dir))
+        else:
+            saver = tf.train.Saver()
+            # Initialize the variables
+            sess.run(tf.global_variables_initializer())
 
         # Set tau = 0
         tau = 0
@@ -111,7 +121,7 @@ if training == True:
         update_target = update_target_graph()
         sess.run(update_target)
 
-        for episode in range(total_episodes):
+        for episode in range(last_episode,total_episodes):
             # Initialize the rewards of the episode
             episode_rewards = []
 
@@ -227,7 +237,9 @@ if training == True:
                     tau = 0
                     print("Model updated")
 
-            # Save model every 50 episodes
-            if episode % 50 == 0:
-                save_path = saver.save(sess, model_path)
-                print("Model Saved")
+            # Save model every 100 episodes
+            if episode%100==0:
+                save_path = saver.save(sess, model_path,global_step=episode)
+                # Saving the objects:
+                with open(variable_path, 'wb') as f:  # Python 3: open(..., 'wb')
+                    pickle.dump([decay_step,episode], f)
